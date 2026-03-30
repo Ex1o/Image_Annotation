@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 230 25% 97%;
+    --foreground: 230 25% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 10%;
+
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 230 20% 93%;
+    --secondary-foreground: 230 25% 15%;
+
+    --muted: 230 15% 94%;
+    --muted-foreground: 230 10% 45%;
+
+    --accent: 262 60% 95%;
+    --accent-foreground: 262 83% 45%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 15% 90%;
+    --input: 230 15% 90%;
+    --ring: 262 83% 58%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Custom tokens */
+    --hero-bg: 230 30% 8%;
+    --hero-foreground: 0 0% 98%;
+    --hero-muted: 230 15% 65%;
+    --upload-bg: 230 20% 14%;
+    --upload-border: 262 40% 40%;
+    --upload-border-dashed: 230 15% 30%;
+    --gradient-primary: linear-gradient(135deg, hsl(262, 83%, 58%), hsl(280, 80%, 65%));
+    --gradient-hero: linear-gradient(180deg, hsl(230, 30%, 8%) 0%, hsl(245, 30%, 12%) 100%);
+    --shadow-card: 0 4px 24px -4px hsl(230 25% 10% / 0.08);
+    --shadow-elevated: 0 12px 40px -8px hsl(262 83% 58% / 0.15);
+  }
+
+  .dark {
+    --background: 230 25% 7%;
+    --foreground: 0 0% 95%;
+    --card: 230 20% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 230 20% 12%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 20% 16%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 230 15% 18%;
+    --muted-foreground: 230 10% 55%;
+    --accent: 262 40% 20%;
+    --accent-foreground: 262 60% 80%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 230 15% 20%;
+    --input: 230 15% 20%;
+    --ring: 262 83% 58%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Prevent scrolling in annotation viewport */
+@layer utilities {
+  .no-scroll {
+    overflow: hidden !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* Hide scrollbars completely */
+  .no-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
