@@ -1,0 +1,11 @@
+{
+  "name": "frontend-diagnostic",
+  "version": "1.0.0",
+  "scripts": {
+    "check:deps": "npm list axios react-router-dom sonner",
+    "check:types": "tsc --noEmit",
+    "check:all": "npm run check:deps && npm run check:types",
+    "fix:install": "npm install",
+    "fix:clean": "rm -rf node_modules package-lock.json && npm install"
+  }
+}

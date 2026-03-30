@@ -10,6 +10,7 @@ Build production-ready computer vision models in minutes. Upload, auto-label, tr
 
 ## ✨ Features
 
+- 🔐 **User Authentication** - Secure JWT-based authentication with login/signup
 - 🖼️ **Image Upload & Management** - Drag-and-drop interface for uploading images
 - 🏷️ **Auto-Labeling** - Automatic image annotation using YOLOv8 segmentation
 - ✏️ **Manual Annotation** - Interactive annotation tools for precise labeling
@@ -64,6 +65,18 @@ npm run dev
 ```
 
 The frontend will be available at `http://localhost:5173`
+
+### 4️⃣ Authentication Setup
+
+The application now includes JWT-based authentication. For detailed setup instructions, see [AUTH_SETUP.md](AUTH_SETUP.md).
+
+**Quick Start:**
+1. Start both frontend and backend servers
+2. Navigate to `http://localhost:5173/login`
+3. Create an account using the Sign Up tab
+4. Login with your credentials
+
+The home page and other routes are now protected and require authentication.
 
 ### 3️⃣ Backend Setup
 
@@ -193,7 +206,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺️ Roadmap
 
-- [ ] User authentication and authorization
+- [x] User authentication and authorization (JWT-based)
 - [ ] Multi-user collaboration
 - [ ] Cloud storage integration
 - [ ] Export annotations in multiple formats (COCO, YOLO, Pascal VOC)

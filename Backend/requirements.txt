@@ -5,3 +5,11 @@ opencv-python
 ultralytics
 python-multipart
 pillow
+sqlalchemy
+python-jose[cryptography]
+bcrypt
+pydantic[email]
+pydantic-settings
+aiosmtplib
+email-validator
+typing_extensions

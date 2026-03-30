@@ -5,12 +5,16 @@ from typing import Optional, Set
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, Form, Query
+from fastapi import FastAPI, File, UploadFile, Form, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 
+# Import authentication modules
+from database import init_db, User
+from auth_routes import router as auth_router
+from auth_middleware import CurrentUser
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "outputs"
@@ -64,7 +68,10 @@ model = YOLO(str(BASE_DIR / "yolov8n-seg.pt"))
 CLASS_NAMES = model.names  # {0: 'person', 1: 'bicycle', ...}
 CLASS_NAME_TO_ID = {name.lower(): idx for idx, name in CLASS_NAMES.items()}
 
-app = FastAPI(title="YOLOv8 Detection API")
+app = FastAPI(title="VisionRapid API - YOLOv8 Detection & Authentication")
+
+# Initialize database
+init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,6 +80,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include authentication routes
+app.include_router(auth_router)
 
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
@@ -221,9 +231,13 @@ def run_multi_scale_detection(image: np.ndarray, target_classes: Set[int]) -> tu
 async def detect(
     file: UploadFile = File(...),
     search: Optional[str] = Form(default=None),
+    # current_user: CurrentUser = None  # Uncomment to require authentication
 ):
     """
     Detect objects in an image with optional class filtering.
+    
+    NOTE: To make this endpoint protected (require authentication),
+    uncomment the current_user parameter above.
     
     Args:
         file: Image file to analyze

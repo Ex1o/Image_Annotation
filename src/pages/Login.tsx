@@ -1,20 +1,18 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Github, Mail } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const { login, register, isLoading } = useAuth();
   
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   
   const [loginData, setLoginData] = useState({
     email: "",
@@ -22,66 +20,65 @@ const Login = () => {
   });
   
   const [signupData, setSignupData] = useState({
-    name: "",
+    username: "",
     email: "",
+    full_name: "",
     password: "",
     confirmPassword: "",
   });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back to VisionRapid!",
+    try {
+      await login({
+        email: loginData.email,
+        password: loginData.password,
       });
-      setIsLoading(false);
-      navigate("/");
-    }, 1500);
+    } catch (error) {
+      // Error is handled in AuthContext
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (signupData.password !== signupData.confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
       return;
     }
 
-    setIsLoading(true);
+    if (signupData.password.length < 6) {
+      return;
+    }
 
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: "Account Created",
-        description: "Welcome to VisionRapid!",
+    if (signupData.username.length < 3) {
+      return;
+    }
+
+    try {
+      await register({
+        username: signupData.username,
+        email: signupData.email,
+        full_name: signupData.full_name || undefined,
+        password: signupData.password,
       });
-      setIsLoading(false);
-      navigate("/");
-    }, 1500);
+    } catch (error) {
+      // Error is handled in AuthContext
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
-    toast({
-      title: "Coming Soon",
-      description: `${provider} authentication will be available soon!`,
-    });
+    console.log(`${provider} authentication coming soon!`);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            VisionRapid
-          </h1>
+          <Link to="/">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              VisionRapid
+            </h1>
+          </Link>
           <p className="text-gray-600">Build Computer Vision Models in Minutes</p>
         </div>
 
@@ -141,15 +138,6 @@ const Login = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center space-x-2">
-                        <input type="checkbox" className="rounded" />
-                        <span className="text-sm text-gray-600">Remember me</span>
-                      </label>
-                      <a href="#" className="text-sm text-blue-600 hover:underline">
-                        Forgot password?
-                      </a>
-                    </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? "Signing in..." : "Sign In"}
                     </Button>
@@ -201,16 +189,17 @@ const Login = () => {
                 <form onSubmit={handleSignup}>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="signup-name">Full Name</Label>
+                      <Label htmlFor="signup-username">Username</Label>
                       <Input
-                        id="signup-name"
+                        id="signup-username"
                         type="text"
-                        placeholder="John Doe"
-                        value={signupData.name}
+                        placeholder="johndoe"
+                        value={signupData.username}
                         onChange={(e) =>
-                          setSignupData({ ...signupData, name: e.target.value })
+                          setSignupData({ ...signupData, username: e.target.value })
                         }
                         required
+                        minLength={3}
                       />
                     </div>
                     <div className="space-y-2">
@@ -227,16 +216,29 @@ const Login = () => {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label htmlFor="signup-fullname">Full Name (Optional)</Label>
+                      <Input
+                        id="signup-fullname"
+                        type="text"
+                        placeholder="John Doe"
+                        value={signupData.full_name}
+                        onChange={(e) =>
+                          setSignupData({ ...signupData, full_name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="signup-password">Password</Label>
                       <Input
                         id="signup-password"
                         type="password"
-                        placeholder="Create a strong password"
+                        placeholder="Create a strong password (min 6 chars)"
                         value={signupData.password}
                         onChange={(e) =>
                           setSignupData({ ...signupData, password: e.target.value })
                         }
                         required
+                        minLength={6}
                       />
                     </div>
                     <div className="space-y-2">
@@ -254,19 +256,6 @@ const Login = () => {
                         }
                         required
                       />
-                    </div>
-                    <div className="flex items-start space-x-2">
-                      <input type="checkbox" required className="mt-1 rounded" />
-                      <span className="text-sm text-gray-600">
-                        I agree to the{" "}
-                        <a href="#" className="text-blue-600 hover:underline">
-                          Terms of Service
-                        </a>{" "}
-                        and{" "}
-                        <a href="#" className="text-blue-600 hover:underline">
-                          Privacy Policy
-                        </a>
-                      </span>
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? "Creating account..." : "Create Account"}
