@@ -163,10 +163,12 @@ const BuildPage = () => {
       // Mark as uninitialized when switching files
       imageInitialized.current[activeFileId] = false;
     }
-    setZoom(1);
+    // Start with fit zoom for 1536x1024 (standard processed size) to avoid size jump
+    const fitZ = computeFitZoom(1536, 1024);
+    setZoom(fitZ);
     setPan({ x: 0, y: 0 });
     setNaturalSize({ w: 1, h: 1 });
-  }, [activeFile?.id]);
+  }, [activeFile?.id, computeFitZoom]);
 
   // Ensure viewport never scrolls - force it to stay at top
   useEffect(() => {
@@ -801,7 +803,8 @@ const BuildPage = () => {
                           
                           // Only auto-fit zoom and reset pan on initial load, not when detection results arrive
                           if (activeFileId && !imageInitialized.current[activeFileId]) {
-                            const fitZ = computeFitZoom(nw, nh);
+                            // Use fit zoom based on processed image size (1536x1024) for consistency
+                            const fitZ = computeFitZoom(1536, 1024);
                             setZoom(fitZ);
                             setPan({ x: 0, y: 0 });
                             imageInitialized.current[activeFileId] = true;
@@ -866,14 +869,14 @@ const BuildPage = () => {
                     />
                   )}
 
-                  {/* Loading overlay - prevents layout shift during detection */}
+                  {/* Loading overlay - compact centered spinner */}
                   {activeLoading && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30 rounded-xl">
-                      <div className="flex flex-col items-center gap-3 bg-black/80 px-6 py-4 rounded-lg shadow-2xl">
-                        <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-white text-sm font-semibold">Detecting objects...</span>
-                          <span className="text-white/60 text-xs">Please wait</span>
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-30">
+                      <div className="flex flex-col items-center gap-2 bg-black/85 px-4 py-3 rounded-md shadow-lg" style={{ minWidth: '140px', maxWidth: '160px' }}>
+                        <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-white text-xs font-medium">Detecting objects...</span>
+                          <span className="text-white/50 text-[10px]">Please wait</span>
                         </div>
                       </div>
                     </div>

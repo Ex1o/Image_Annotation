@@ -1,3 +1,4 @@
+import io
 import time
 import uuid
 from pathlib import Path
@@ -5,6 +6,7 @@ from typing import Optional, Set
 
 import cv2
 import numpy as np
+from PIL import Image
 from fastapi import FastAPI, File, UploadFile, Form, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -60,6 +62,28 @@ PALETTE_RGB = [
 PALETTE_BGR = [(b, g, r) for r, g, b in PALETTE_RGB]
 # Pre-compute hex strings for the JSON response
 PALETTE_HEX = ["#{:02x}{:02x}{:02x}".format(r, g, b) for r, g, b in PALETTE_RGB]
+
+# Image resize settings for preprocessing
+RESIZE_WIDTH = 1536
+RESIZE_HEIGHT = 1024
+
+
+def resize_image(pil_image: Image.Image, width: int = RESIZE_WIDTH, height: int = RESIZE_HEIGHT) -> Image.Image:
+    """
+    Resize image to specified dimensions before detection pipeline.
+    
+    Args:
+        pil_image: PIL Image object to resize
+        width: Target width (default: 1536)
+        height: Target height (default: 1024)
+    
+    Returns:
+        Resized PIL Image
+    """
+    resized_img = pil_image.resize((width, height), Image.LANCZOS)
+    print(f"✅ Image resized to {width}x{height}")
+    return resized_img
+
 
 print("Loading YOLOv8 model...")
 model = YOLO(str(BASE_DIR / "yolov8n-seg.pt"))
@@ -248,8 +272,19 @@ async def detect(
         start_time = time.time()
 
         contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        # ── Resize image to 1536x1024 (fallback if frontend didn't resize) ──
+        pil_image = Image.open(io.BytesIO(contents))
+        if pil_image.mode != "RGB":
+            pil_image = pil_image.convert("RGB")
+        
+        # Only resize if image is not already 1536x1024
+        if pil_image.size != (RESIZE_WIDTH, RESIZE_HEIGHT):
+            pil_image = resize_image(pil_image, RESIZE_WIDTH, RESIZE_HEIGHT)
+        
+        # Convert resized PIL image to OpenCV format (numpy array)
+        image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+        
         if image is None:
             return JSONResponse(
                 status_code=400,
