@@ -1,4 +1,5 @@
 import io
+import os
 import time
 import uuid
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import Optional, Set
 
 import cv2
 import numpy as np
+import torch
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, Form, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +23,34 @@ from auth_middleware import CurrentUser
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "outputs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CUDA CACHE & OPTIMIZATION SETTINGS
+# ══════════════════════════════════════════════════════════════════════════════
+# Enable CUDA caching for faster inference
+os.environ["CUDA_LAUNCH_BLOCKING"] = "0"  # Async CUDA operations for better performance
+os.environ["TORCH_CUDNN_V8_API_ENABLED"] = "1"  # Use cuDNN v8 API
+os.environ["CUDA_MODULE_LOADING"] = "LAZY"  # Lazy load CUDA modules to save memory
+
+# Check CUDA availability
+CUDA_AVAILABLE = torch.cuda.is_available()
+DEVICE = "cuda:0" if CUDA_AVAILABLE else "cpu"
+
+if CUDA_AVAILABLE:
+    print(f"🚀 CUDA Available: {torch.cuda.get_device_name(0)}")
+    print(f"   CUDA Version: {torch.version.cuda}")
+    print(f"   Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+    
+    # Enable CUDA optimizations
+    torch.backends.cudnn.benchmark = True  # Auto-tune for best performance
+    torch.backends.cudnn.deterministic = False  # Allow non-deterministic for speed
+    torch.backends.cuda.matmul.allow_tf32 = True  # TensorFloat-32 for faster matmul
+    torch.backends.cudnn.allow_tf32 = True  # TensorFloat-32 for cuDNN
+    
+    # Set memory allocator for better caching
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
+else:
+    print("⚠️  CUDA not available, using CPU")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # IMPROVED DETECTION PARAMETERS - Optimized for ALL objects including small/distant
@@ -88,9 +118,56 @@ def resize_image(pil_image: Image.Image, width: int = RESIZE_WIDTH, height: int 
 print("Loading YOLOv8 model...")
 model = YOLO(str(BASE_DIR / "yolov8n-seg.pt"))
 
+# Move model to CUDA if available
+if CUDA_AVAILABLE:
+    model.to(DEVICE)
+    print(f"✅ Model loaded on {DEVICE}")
+    
+    # Warmup: Run dummy inference to compile CUDA kernels and cache
+    print("🔥 Warming up CUDA cache...")
+    dummy_img = np.zeros((640, 640, 3), dtype=np.uint8)
+    _ = model.predict(dummy_img, verbose=False, device=DEVICE)
+    print("✅ CUDA warmup complete")
+else:
+    print(f"✅ Model loaded on {DEVICE}")
+
 # Build class name lookup for search functionality
 CLASS_NAMES = model.names  # {0: 'person', 1: 'bicycle', ...}
 CLASS_NAME_TO_ID = {name.lower(): idx for idx, name in CLASS_NAMES.items()}
+
+
+def clear_cuda_cache():
+    """
+    Clear CUDA cache to free GPU memory.
+    Useful after processing large batches or when memory is fragmented.
+    """
+    if CUDA_AVAILABLE:
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+        if hasattr(torch.cuda, 'reset_peak_memory_stats'):
+            torch.cuda.reset_peak_memory_stats()
+        print("🧹 CUDA cache cleared")
+        return True
+    return False
+
+
+def get_cuda_memory_info():
+    """Get current CUDA memory usage statistics."""
+    if not CUDA_AVAILABLE:
+        return None
+    
+    allocated = torch.cuda.memory_allocated(0) / 1024**2  # MB
+    reserved = torch.cuda.memory_reserved(0) / 1024**2  # MB
+    total = torch.cuda.get_device_properties(0).total_memory / 1024**2  # MB
+    
+    return {
+        "allocated_mb": round(allocated, 2),
+        "reserved_mb": round(reserved, 2),
+        "total_mb": round(total, 2),
+        "free_mb": round(total - reserved, 2),
+        "utilization_percent": round((reserved / total) * 100, 2)
+    }
+
 
 app = FastAPI(title="VisionRapid API - YOLOv8 Detection & Authentication")
 
@@ -160,6 +237,7 @@ def run_multi_scale_detection(image: np.ndarray, target_classes: Set[int]) -> tu
     """
     Run detection at multiple scales to catch small and distant objects.
     Merges results with NMS to avoid duplicates.
+    Uses CUDA if available for faster inference.
     """
     h, w = image.shape[:2]
     all_boxes = []
@@ -175,6 +253,7 @@ def run_multi_scale_detection(image: np.ndarray, target_classes: Set[int]) -> tu
             imgsz=imgsz,
             verbose=False,
             retina_masks=True,  # Higher quality masks
+            device=DEVICE,  # Use CUDA if available
         )
         result = results[0]
         
@@ -433,6 +512,10 @@ async def detect(
 
         processing_time_ms = int((time.time() - start_time) * 1000)
         
+        # Clear CUDA cache after detection to prevent memory fragmentation
+        if CUDA_AVAILABLE:
+            clear_cuda_cache()
+        
         # Build search info for response
         search_info = None
         if search:
@@ -473,6 +556,81 @@ async def get_classes():
         "classes": list(CLASS_NAMES.values()),
         "class_map": CLASS_NAMES,
         "total": len(CLASS_NAMES),
+    }
+
+
+@app.post("/cuda/clear-cache")
+async def clear_cache():
+    """
+    Clear CUDA cache to free GPU memory.
+    Useful when memory is fragmented or after processing large batches.
+    """
+    if not CUDA_AVAILABLE:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "CUDA not available", "device": "cpu"}
+        )
+    
+    try:
+        clear_cuda_cache()
+        memory_info = get_cuda_memory_info()
+        return {
+            "status": "success",
+            "message": "CUDA cache cleared successfully",
+            "memory": memory_info
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get("/cuda/memory")
+async def get_memory():
+    """
+    Get current CUDA memory usage statistics.
+    """
+    if not CUDA_AVAILABLE:
+        return {
+            "cuda_available": False,
+            "device": "cpu"
+        }
+    
+    memory_info = get_cuda_memory_info()
+    return {
+        "cuda_available": True,
+        "device": DEVICE,
+        "device_name": torch.cuda.get_device_name(0),
+        "memory": memory_info
+    }
+
+
+@app.get("/cuda/status")
+async def get_cuda_status():
+    """
+    Get comprehensive CUDA status and configuration.
+    """
+    if not CUDA_AVAILABLE:
+        return {
+            "cuda_available": False,
+            "device": "cpu"
+        }
+    
+    memory_info = get_cuda_memory_info()
+    return {
+        "cuda_available": True,
+        "device": DEVICE,
+        "device_name": torch.cuda.get_device_name(0),
+        "cuda_version": torch.version.cuda,
+        "cudnn_enabled": torch.backends.cudnn.enabled,
+        "cudnn_version": torch.backends.cudnn.version() if torch.backends.cudnn.enabled else None,
+        "cudnn_benchmark": torch.backends.cudnn.benchmark,
+        "memory": memory_info,
+        "optimizations": {
+            "tf32_enabled": torch.backends.cuda.matmul.allow_tf32,
+            "cudnn_tf32_enabled": torch.backends.cudnn.allow_tf32,
+        }
     }
 
 
