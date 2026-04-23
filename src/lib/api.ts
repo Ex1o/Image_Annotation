@@ -7,6 +7,36 @@ const withCacheBuster = (url: string) => {
   return `${url}${separator}t=${Date.now()}`;
 };
 
+const getErrorMessage = async (res: Response): Promise<string> => {
+  if (res.status === 413) {
+    return "Upload is too large for the gateway. Please try a smaller image.";
+  }
+
+  if (res.status === 502) {
+    return "Gateway error while contacting backend. Please retry in a few seconds.";
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    const payload = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
+    const jsonMessage = payload?.error || payload?.detail;
+    if (jsonMessage) {
+      return jsonMessage;
+    }
+  }
+
+  const text = await res.text().catch(() => "");
+  if (text) {
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (normalized) {
+      return normalized.slice(0, 220);
+    }
+  }
+
+  return `Request failed (${res.status})`;
+};
+
 export interface Detection {
   id: string;
   class: string;
@@ -43,15 +73,19 @@ export async function detectObjects(file: File, searchQuery?: string): Promise<D
     formData.append("search", searchQuery.trim());
   }
 
-  const res = await fetch(buildApiUrl("/detect"), {
-    method: "POST",
-    body: formData,
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(buildApiUrl("/detect"), {
+      method: "POST",
+      body: formData,
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error("Cannot reach API gateway. Check network and backend status.");
+  }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(err.error ?? `Detection failed (${res.status})`);
+    throw new Error(await getErrorMessage(res));
   }
 
   const data: DetectionResult = await res.json();

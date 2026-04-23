@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { DetectionResult, detectObjects, getAvailableClasses, ClassesResult } from "@/lib/api";
 
+const TARGET_UPLOAD_BYTES = 900 * 1024;
+const INITIAL_JPEG_QUALITY = 0.88;
+const MIN_JPEG_QUALITY = 0.55;
+const JPEG_QUALITY_STEP = 0.08;
+
 export interface UploadedFile {
   id: string;
   file: File;
@@ -71,31 +76,55 @@ async function resizeImage(file: File, width = 1536, height = 1024): Promise<Fil
       canvas.width = width;
       canvas.height = height;
 
+      // Flatten transparency to white before JPEG export.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
       // Draw resized image
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Convert to Blob then File
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("Failed to create blob"));
-            return;
+      const fileBaseName = file.name.replace(/\.[^.]+$/, "") || "upload";
+
+      const createJpegBlob = (quality: number): Promise<Blob> =>
+        new Promise((blobResolve, blobReject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                blobReject(new Error("Failed to create JPEG blob"));
+                return;
+              }
+              blobResolve(blob);
+            },
+            "image/jpeg",
+            quality
+          );
+        });
+
+      (async () => {
+        try {
+          let quality = INITIAL_JPEG_QUALITY;
+          let blob = await createJpegBlob(quality);
+
+          while (blob.size > TARGET_UPLOAD_BYTES && quality > MIN_JPEG_QUALITY) {
+            quality = Math.max(MIN_JPEG_QUALITY, quality - JPEG_QUALITY_STEP);
+            blob = await createJpegBlob(quality);
           }
 
-          // Create new File with same name and type
-          const resizedFile = new File([blob], file.name, {
-            type: file.type || "image/png",
+          const resizedFile = new File([blob], `${fileBaseName}.jpg`, {
+            type: "image/jpeg",
             lastModified: Date.now(),
           });
 
-          console.log(`✅ Image resized to ${width}x${height}: ${file.name}`);
+          console.log(
+            `✅ Image resized to ${width}x${height}: ${file.name} (${Math.round(blob.size / 1024)} KB)`
+          );
           resolve(resizedFile);
-        },
-        file.type || "image/png",
-        0.95 // Quality (95%)
-      );
-
-      URL.revokeObjectURL(img.src);
+        } catch (compressionError) {
+          reject(compressionError);
+        } finally {
+          URL.revokeObjectURL(img.src);
+        }
+      })();
     };
 
     img.onerror = () => {
