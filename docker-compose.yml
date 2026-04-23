@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: visionrapid-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:///./data/visionrapid.db
+    volumes:
+      - backend_outputs:/app/Backend/outputs
+      - backend_data:/app/Backend/data
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: /api
+    container_name: visionrapid-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  backend_outputs:
+  backend_data:

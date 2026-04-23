@@ -66,7 +66,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       toast.success('Login successful!');
       navigate('/');
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Login failed. Please check your credentials.';
+      const message = error.response?.data?.detail
+        || (error.code === 'ERR_NETWORK'
+          ? 'Backend server is unreachable. Start the API server and try again.'
+          : 'Login failed. Please check your credentials.');
       toast.error(message);
       throw error;
     } finally {
@@ -81,7 +84,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       toast.success('Registration successful! You can now log in.');
       navigate('/login');
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Registration failed. Please try again.';
+      const message = error.response?.data?.detail
+        || (error.code === 'ERR_NETWORK'
+          ? 'Backend server is unreachable. Start the API server and try again.'
+          : 'Registration failed. Please try again.');
       toast.error(message);
       throw error;
     } finally {

@@ -166,6 +166,14 @@ BACKEND_PORT=8000
 MODEL_PATH=./yolov8n-seg.pt
 ```
 
+### Docker Build Variable (Frontend)
+
+For container deployments, the frontend API base is set at build time:
+
+```env
+VITE_API_URL=/api
+```
+
 ## 🧪 Testing
 
 ```bash
@@ -183,6 +191,30 @@ npm run test:watch
 npm run build
 
 # The build output will be in the dist/ directory
+```
+
+## 🐳 Docker Deployment
+
+This repo includes:
+- `Dockerfile.backend` for FastAPI
+- `Dockerfile.frontend` for React + Nginx
+- `docker-compose.yml` for full-stack deployment
+- `nginx.conf` with `/api/*` reverse proxy to backend
+
+### Run with Docker Compose
+
+```bash
+docker compose up --build -d
+```
+
+App URL:
+- Frontend: `http://localhost`
+- Backend via proxy: `http://localhost/api/*`
+
+### Stop
+
+```bash
+docker compose down
 ```
 
 ## 🤝 Contributing
