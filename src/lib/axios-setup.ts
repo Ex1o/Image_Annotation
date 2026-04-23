@@ -5,7 +5,7 @@
 import axios from 'axios';
 import { authService } from './auth-service';
 
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || '/api';
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 
 // Setup request interceptor to add JWT token to headers
 axios.interceptors.request.use(

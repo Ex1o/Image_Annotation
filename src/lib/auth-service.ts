@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export interface RegisterData {
   username: string;
   email: string;
@@ -38,12 +40,12 @@ class AuthService {
   private USER_KEY = 'visionrapid_user';
 
   async register(data: RegisterData): Promise<UserResponse> {
-    const response = await axios.post('/auth/register', data);
+    const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
     return response.data;
   }
 
   async login(data: LoginData): Promise<TokenResponse> {
-    const response = await axios.post('/auth/login', data);
+    const response = await axios.post(`${API_BASE_URL}/auth/login`, data);
     const { access_token, refresh_token } = response.data;
     
     // Store tokens
@@ -61,7 +63,7 @@ class AuthService {
     if (!refreshToken) return false;
 
     try {
-      const response = await axios.post('/auth/refresh', {
+      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
         refresh_token: refreshToken
       });
       const { access_token, refresh_token } = response.data;
@@ -81,7 +83,7 @@ class AuthService {
     if (!token) return null;
 
     try {
-      const response = await axios.get('/auth/me', {
+      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -93,7 +95,7 @@ class AuthService {
       if (refreshed) {
         // Retry with new token
         const newToken = this.getToken();
-        const response = await axios.get('/auth/me', {
+        const response = await axios.get(`${API_BASE_URL}/auth/me`, {
           headers: {
             Authorization: `Bearer ${newToken}`
           }
