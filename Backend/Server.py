@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import torch
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile, Form, Query, Depends
+from fastapi import FastAPI, File, UploadFile, Form, Query, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +23,8 @@ from auth_middleware import CurrentUser
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "outputs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_CACHE_MAX_FILES = int(os.getenv("OUTPUT_CACHE_MAX_FILES", "500"))
+OUTPUT_CACHE_MAX_AGE_SECONDS = int(os.getenv("OUTPUT_CACHE_MAX_AGE_SECONDS", str(24 * 60 * 60)))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CUDA CACHE & OPTIMIZATION SETTINGS
@@ -151,6 +153,34 @@ def clear_cuda_cache():
     return False
 
 
+def cleanup_output_cache() -> None:
+    """
+    Keep generated output images bounded by age and count.
+    This prevents unbounded disk growth on long-running deployments.
+    """
+    try:
+        output_files = sorted(
+            OUTPUT_DIR.glob("*.png"),
+            key=lambda file_path: file_path.stat().st_mtime,
+            reverse=True,
+        )
+        now = time.time()
+
+        for index, file_path in enumerate(output_files):
+            file_age_seconds = now - file_path.stat().st_mtime
+            is_too_old = file_age_seconds > OUTPUT_CACHE_MAX_AGE_SECONDS
+            exceeds_max_count = index >= OUTPUT_CACHE_MAX_FILES
+
+            if is_too_old or exceeds_max_count:
+                try:
+                    file_path.unlink()
+                except FileNotFoundError:
+                    # Another request may remove the same file concurrently.
+                    continue
+    except Exception as cleanup_error:
+        print(f"⚠️ Output cache cleanup skipped: {cleanup_error}")
+
+
 def get_cuda_memory_info():
     """Get current CUDA memory usage statistics."""
     if not CUDA_AVAILABLE:
@@ -181,6 +211,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def output_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    if request.url.path.startswith("/outputs/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+    return response
 
 # Include authentication routes
 app.include_router(auth_router)
@@ -509,6 +551,7 @@ async def detect(
         filename = f"{uuid.uuid4().hex}.png"
         output_path = OUTPUT_DIR / filename
         cv2.imwrite(str(output_path), output)
+        cleanup_output_cache()
 
         processing_time_ms = int((time.time() - start_time) * 1000)
         

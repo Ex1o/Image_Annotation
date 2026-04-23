@@ -33,6 +33,18 @@ export const useUpload = () => {
   return ctx;
 };
 
+function generateUploadId(): string {
+  if (
+    typeof globalThis !== "undefined" &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
  * Resize image to 1536x1024 before uploading/processing
  * This ensures consistent dimensions across the pipeline
@@ -103,9 +115,14 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
 
   const addFiles = async (newFiles: File[]) => {
-    const filtered = newFiles.filter(
-      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
-    );
+    const filtered = newFiles.filter((f) => {
+      if (f.type.startsWith("image/") || f.type.startsWith("video/")) {
+        return true;
+      }
+
+      // Some browsers/filesystems may not provide MIME type for local files.
+      return /\.(png|jpe?g|webp|gif|bmp|tiff?|mp4|mov|webm|mkv|avi)$/i.test(f.name);
+    });
 
     // Resize all images to 1536x1024 before adding
     const resizedFiles = await Promise.all(
@@ -120,7 +137,7 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
     );
 
     const mapped = resizedFiles.map((file) => ({
-      id: crypto.randomUUID(),
+      id: generateUploadId(),
       file,
       preview: URL.createObjectURL(file),
       type: (file.type.startsWith("video/") ? "video" : "image") as "image" | "video",

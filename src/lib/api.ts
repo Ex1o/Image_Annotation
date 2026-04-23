@@ -1,5 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+const buildApiUrl = (path: string) => `${API_BASE}${path}`;
+
+const withCacheBuster = (url: string) => {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}t=${Date.now()}`;
+};
+
 export interface Detection {
   id: string;
   class: string;
@@ -36,9 +43,10 @@ export async function detectObjects(file: File, searchQuery?: string): Promise<D
     formData.append("search", searchQuery.trim());
   }
 
-  const res = await fetch(`${API_BASE}/detect`, {
+  const res = await fetch(buildApiUrl("/detect"), {
     method: "POST",
     body: formData,
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -47,13 +55,17 @@ export async function detectObjects(file: File, searchQuery?: string): Promise<D
   }
 
   const data: DetectionResult = await res.json();
-  // Prefix the output image URL with the API base so the browser can load it
-  data.output_image_url = `${API_BASE}${data.output_image_url}`;
+  const outputUrl = data.output_image_url.startsWith("http")
+    ? data.output_image_url
+    : buildApiUrl(data.output_image_url);
+
+  // Force fresh output image loads after each detection run.
+  data.output_image_url = withCacheBuster(outputUrl);
   return data;
 }
 
 export async function getAvailableClasses(): Promise<ClassesResult> {
-  const res = await fetch(`${API_BASE}/classes`);
+  const res = await fetch(buildApiUrl("/classes"), { cache: "no-store" });
   if (!res.ok) {
     throw new Error("Failed to fetch available classes");
   }
@@ -62,7 +74,7 @@ export async function getAvailableClasses(): Promise<ClassesResult> {
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await fetch(buildApiUrl("/health"), { cache: "no-store" });
     return res.ok;
   } catch {
     return false;
